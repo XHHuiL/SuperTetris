@@ -65,13 +65,13 @@ TIP_4_Y = 235
 TIP_5_Y = 265
 
 # tow variables used to control bgm
-IS_PAUSED = False
-IS_STOPPED = False
+IS_MUSIC_PAUSED = False
+IS_MUSIC_STOPPED = False
 
 # variables used in play-interface
 READY_PLAY_MES = "please press key 'a' to start game"
 
-IS_PLAYING = False
+IS_GAME_PLAYING = False
 IS_GAME_PAUSED = False
 
 # three main blocks' position in play-interface
@@ -79,6 +79,12 @@ BLOCK_OUTLINE_COLOR = colors.Brown
 
 PLAY_BLOCK_POINTS = ((20, 20), (220, 20), (220, 400), (20, 400))
 INF_BLOCK_POINTS = ((240, 20), (500, 20), (500, 400), (240, 400))
+
+PLAY_LEFT_BOUNDARY = 20
+PLAY_RIGHT_BOUNDARY = 220
+
+INF_LEFT_BOUNDARY = 240
+INF_RIGHT_BOUNDARY = 500
 
 # the next building label text and score label text
 NEXT_BUILDING_TEXT = "Next:"
@@ -148,9 +154,9 @@ def main():
     global LEVEL_2_CHOSEN
     global LEVEL_3_CHOSEN
 
-    global IS_PAUSED
-    global IS_STOPPED
-    global IS_PLAYING
+    global IS_MUSIC_PAUSED
+    global IS_MUSIC_STOPPED
+    global IS_GAME_PLAYING
 
     global NEXT_BUILDING
 
@@ -282,37 +288,37 @@ def main():
 
             # pause the back ground music
             if event.key == K_p:
-                if not IS_STOPPED:
+                if not IS_MUSIC_STOPPED:
                     if IN_MENU or IN_LEVEL or IN_HELP:
-                        if IS_PAUSED:
+                        if IS_MUSIC_PAUSED:
                             menu_bgm_channel.unpause()
                         else:
                             menu_bgm_channel.pause()
                     else:
-                        if IS_PAUSED:
+                        if IS_MUSIC_PAUSED:
                             play_bgm_channel.unpause()
                         else:
                             play_bgm_channel.pause()
-                    IS_PAUSED = not IS_PAUSED
+                    IS_MUSIC_PAUSED = not IS_MUSIC_PAUSED
 
             # stop the back ground music
             if event.key == K_s:
                 if IN_MENU or IN_LEVEL or IN_HELP:
-                    if IS_STOPPED:
+                    if IS_MUSIC_STOPPED:
                         menu_bgm_channel = menu_bgm.play(-1)
                     else:
                         menu_bgm.stop()
                 else:
-                    if IS_STOPPED:
+                    if IS_MUSIC_STOPPED:
                         play_bgm_channel = play_bgm.play(-1)
                     else:
                         play_bgm.stop()
-                IS_STOPPED = not IS_STOPPED
+                IS_MUSIC_STOPPED = not IS_MUSIC_STOPPED
 
             # turn to menu-interface
             if event.key == K_ESCAPE and not IN_MENU:
                 if IN_PLAY:
-                    IS_PLAYING = False
+                    IS_GAME_PLAYING = False
                     play_bgm.stop()
                     menu_bgm_channel = menu_bgm.play(-1)
                 turn_to_menu()
@@ -321,9 +327,26 @@ def main():
             if event.key == K_q:
                 quit(0)
 
-            if event.key == K_a and IN_PLAY and not IS_PLAYING:
+            # ready to start game
+            if event.key == K_a and IN_PLAY and not IS_GAME_PLAYING:
                 ready_go_music.play()
-                IS_PLAYING = True
+                IS_GAME_PLAYING = True
+
+            # rotate building
+            if event.key == K_z and IN_PLAY and IS_GAME_PLAYING:
+                NEXT_BUILDING.rotation(K_z)
+
+            # rotate building
+            if event.key == K_c and IN_PLAY and IS_GAME_PLAYING:
+                NEXT_BUILDING.rotation(K_c)
+
+            # move the next building horizontally right
+            if event.key == K_RIGHT and IN_PLAY and IS_GAME_PLAYING:
+                NEXT_BUILDING.horizontal_move(K_RIGHT)
+
+            # move the next building horizontally left
+            if event.key == K_LEFT and IN_PLAY and IS_GAME_PLAYING:
+                NEXT_BUILDING.horizontal_move(K_LEFT)
 
         # listen to the mouse pressed event in level-interface
         # this statue must be dealt before the next one
@@ -345,14 +368,11 @@ def main():
                 IN_MENU = False
                 IN_PLAY = True
                 PLAY_OPTION_CHOSEN = False
-                IS_PAUSED = False
-                IS_STOPPED = False
+                IS_MUSIC_PAUSED = False
+                IS_MUSIC_STOPPED = False
                 menu_bgm.stop()
                 play_bgm_channel = play_bgm.play(-1)
-                NEXT_BUILDING = TBuilding(TYPES[random.randint(0, TYPES_MAX_INDEX)],
-                                          COLORS[random.randint(0, COLORS_MAX_INDEX)],
-                                          NEXT_BUILDING_POS, TBuilding.SHOWING,
-                                          DIRECTIONS[random.randint(0, DIRECTIONS_MAX_INDEX)])
+                NEXT_BUILDING = get_building_randomly(NEXT_BUILDING_POS, True)
                 pass
             # switch to the level-interface
             if LEVEL_OPTION_CHOSEN:
@@ -455,7 +475,7 @@ def main():
             screen.blit(tetris_logo, tetris_logo_rect)
 
         # set the three block in play-interface
-        if IN_PLAY and IS_PLAYING:
+        if IN_PLAY and IS_GAME_PLAYING:
             pygame.draw.lines(screen, BLOCK_OUTLINE_COLOR, True, PLAY_BLOCK_POINTS)
             pygame.draw.lines(screen, BLOCK_OUTLINE_COLOR, True, INF_BLOCK_POINTS)
             screen.blit(next_label, (NEXT_LABEL_X, NEXT_LABEL_Y))
@@ -464,7 +484,7 @@ def main():
             NEXT_BUILDING.draw(screen)
 
         # set the prompt message
-        if IN_PLAY and not IS_PLAYING:
+        if IN_PLAY and not IS_GAME_PLAYING:
             screen.blit(start_game_prompt, start_game_prompt_rect)
 
         # update
@@ -478,18 +498,33 @@ def turn_to_menu():
     global IN_LEVEL
     global IN_HELP
 
-    global IS_PAUSED
-    global IS_STOPPED
+    global IS_MUSIC_PAUSED
+    global IS_MUSIC_STOPPED
 
     if IN_PLAY:
-        IS_PAUSED = False
-        IS_STOPPED = False
+        IS_MUSIC_PAUSED = False
+        IS_MUSIC_STOPPED = False
 
     IN_MENU = True
     IN_PLAY = False
     IN_LEVEL = False
     IN_HELP = False
 
+
+#
+def get_building_randomly(pos, next):
+    if next:
+        return TBuilding(TYPES[random.randint(0, TYPES_MAX_INDEX)],
+                        COLORS[random.randint(0, COLORS_MAX_INDEX)],
+                        pos, TBuilding.SHOWING,
+                        DIRECTIONS[random.randint(0, DIRECTIONS_MAX_INDEX)],
+                        INF_LEFT_BOUNDARY, INF_RIGHT_BOUNDARY)
+    else:
+        return TBuilding(TYPES[random.randint(0, TYPES_MAX_INDEX)],
+                         COLORS[random.randint(0, COLORS_MAX_INDEX)],
+                         pos, TBuilding.SHOWING,
+                         DIRECTIONS[random.randint(0, DIRECTIONS_MAX_INDEX)],
+                         PLAY_LEFT_BOUNDARY, PLAY_RIGHT_BOUNDARY)
 
 if __name__ == "__main__":
     main()
