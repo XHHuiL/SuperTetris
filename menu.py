@@ -80,8 +80,12 @@ BLOCK_OUTLINE_COLOR = colors.Brown
 PLAY_BLOCK_POINTS = ((20, 20), (220, 20), (220, 400), (20, 400))
 INF_BLOCK_POINTS = ((240, 20), (500, 20), (500, 400), (240, 400))
 
-PLAY_LEFT_BOUNDARY = 20
-PLAY_RIGHT_BOUNDARY = 220
+PLAY_BLOCK = None
+
+PLAY_LEFT_BOUNDARY = 0
+PLAY_RIGHT_BOUNDARY = 200
+PLAY_UP_BOUNDARY = 0
+PLAY_DOWN_BOUNDARY = 380
 
 INF_LEFT_BOUNDARY = 240
 INF_RIGHT_BOUNDARY = 500
@@ -90,6 +94,8 @@ INF_RIGHT_BOUNDARY = 500
 NEXT_BUILDING_TEXT = "Next:"
 SCORE_TEXT = "Score:"
 SCORE_NUMBER_TEXT = "000"
+
+SCORE_NUMBER = 0
 
 LABEL_HEIGHT = 30
 NEXT_LABEL_X = 258
@@ -100,9 +106,18 @@ SCORE_NUMBER_X = 303
 SCORE_NUMBER_Y = 280
 
 # next building's x and y
+NEXT_BUILDING = None
 NEXT_BUILDING_X = 380
 NEXT_BUILDING_Y = 160
 NEXT_BUILDING_POS = (NEXT_BUILDING_X, NEXT_BUILDING_Y)
+UNIT_SPEED = 40
+T_UNIT_SPEED = 3 * UNIT_SPEED
+INCREASE_Y = 0
+
+# current building's start x and y
+CURRENT_BUILDING = None
+CURRENT_BUILDING_X = 100
+CURRENT_BUILDING_Y = 40
 
 COLORS = (colors.Red, colors.ChestnutRed, colors.DullRed,
           colors.BrownRed, colors.FireRed, colors.DeepRed,
@@ -133,10 +148,8 @@ DIRECTIONS_MAX_INDEX = 3
 
 STATUS = (TBuilding.FALLING, TBuilding.STOPPING, TBuilding.SHOWING)
 
-NEXT_BUILDING = None
-
-SCORE_NUMBER = 0
-
+# a clock
+CLOCK = None
 
 def main():
     # reference the global variables
@@ -159,12 +172,19 @@ def main():
     global IS_GAME_PLAYING
 
     global NEXT_BUILDING
+    global CURRENT_BUILDING
+    global PLAY_BLOCK
+    global INCREASE_Y
+    global CLOCK
+    global UNIT_SPEED
+    global IS_GAME_PAUSED
 
     # init
     pygame.init()
     pygame.display.set_caption("Super Tetris")
     screen_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
     screen = pygame.display.set_mode(screen_size, 0, 32)
+    PLAY_BLOCK = screen.subsurface(((20, 20), (200, 380)))
 
     ##################################
     ## 1.settings of menu-interface ##
@@ -275,9 +295,13 @@ def main():
     tip_rect_5 = tip_5.get_rect()
     tip_rect_5.center = (SCREEN_WIDTH / 2, TIP_5_Y + TIP_HEIGHT / 2)
 
+    # init the clock
+    CLOCK = pygame.time.Clock()
+
     # main loop
     while True:
-        event = pygame.event.wait()
+        # get the first event from the event list
+        event = pygame.event.poll()
 
         # listen to the quit event
         if event.type == QUIT:
@@ -331,22 +355,39 @@ def main():
             if event.key == K_a and IN_PLAY and not IS_GAME_PLAYING:
                 ready_go_music.play()
                 IS_GAME_PLAYING = True
+                CURRENT_BUILDING = get_building_randomly((CURRENT_BUILDING_X, CURRENT_BUILDING_Y), False)
+                INCREASE_Y = 0
+                IS_GAME_PAUSED = False
 
-            # rotate building
+            # rotate the current building
             if event.key == K_z and IN_PLAY and IS_GAME_PLAYING:
-                NEXT_BUILDING.rotation(K_z)
+                CURRENT_BUILDING.rotation(K_z)
 
-            # rotate building
+            # rotate the current building
             if event.key == K_c and IN_PLAY and IS_GAME_PLAYING:
-                NEXT_BUILDING.rotation(K_c)
+                CURRENT_BUILDING.rotation(K_c)
 
-            # move the next building horizontally right
+            # move the current building horizontally right
             if event.key == K_RIGHT and IN_PLAY and IS_GAME_PLAYING:
-                NEXT_BUILDING.horizontal_move(K_RIGHT)
+                CURRENT_BUILDING.horizontal_move(K_RIGHT, False)
 
-            # move the next building horizontally left
+            # move the current building horizontally left
             if event.key == K_LEFT and IN_PLAY and IS_GAME_PLAYING:
-                NEXT_BUILDING.horizontal_move(K_LEFT)
+                CURRENT_BUILDING.horizontal_move(K_LEFT, False)
+
+            # increase the unit speed by pressing key 'DOWN'
+            if event.key == K_DOWN and IN_PLAY and IS_GAME_PLAYING:
+                if UNIT_SPEED < T_UNIT_SPEED:
+                    UNIT_SPEED += 10
+
+            if event.key == K_SPACE and IN_PLAY and IS_GAME_PLAYING:
+                if IS_GAME_PAUSED:
+                    IS_GAME_PAUSED = False
+                else:
+                    IS_GAME_PAUSED = True
+
+
+
 
         # listen to the mouse pressed event in level-interface
         # this statue must be dealt before the next one
@@ -373,7 +414,7 @@ def main():
                 menu_bgm.stop()
                 play_bgm_channel = play_bgm.play(-1)
                 NEXT_BUILDING = get_building_randomly(NEXT_BUILDING_POS, True)
-                pass
+                UNIT_SPEED = T_UNIT_SPEED / 3
             # switch to the level-interface
             if LEVEL_OPTION_CHOSEN:
                 IN_MENU = False
@@ -481,7 +522,13 @@ def main():
             screen.blit(next_label, (NEXT_LABEL_X, NEXT_LABEL_Y))
             screen.blit(score_label, (SCORE_LABEL_X, SCORE_LABEL_Y))
             screen.blit(score_number_label, (SCORE_NUMBER_X, SCORE_NUMBER_Y))
+
+            # draw the next building
             NEXT_BUILDING.draw(screen)
+
+            # draw the current building in play block
+            CURRENT_BUILDING.increase_y(INCREASE_Y)
+            CURRENT_BUILDING.draw(PLAY_BLOCK)
 
         # set the prompt message
         if IN_PLAY and not IS_GAME_PLAYING:
@@ -489,6 +536,12 @@ def main():
 
         # update
         pygame.display.update()
+
+        # get the pass time
+        time_pa = CLOCK.tick(25)
+        INCREASE_Y = CURRENT_LEVEL * UNIT_SPEED * time_pa / 1000.0
+        if IS_GAME_PAUSED:
+            INCREASE_Y = 0
 
 
 # function used to set some variables when turn to menu-interface
@@ -522,7 +575,7 @@ def get_building_randomly(pos, next):
     else:
         return TBuilding(TYPES[random.randint(0, TYPES_MAX_INDEX)],
                          COLORS[random.randint(0, COLORS_MAX_INDEX)],
-                         pos, TBuilding.SHOWING,
+                         pos, TBuilding.FALLING,
                          DIRECTIONS[random.randint(0, DIRECTIONS_MAX_INDEX)],
                          PLAY_LEFT_BOUNDARY, PLAY_RIGHT_BOUNDARY)
 

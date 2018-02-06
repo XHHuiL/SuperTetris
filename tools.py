@@ -93,6 +93,14 @@ class TBuilding:
         self.x = cnt_pos[0]
         self.y = cnt_pos[1]
 
+    # set y of this building
+    def set_y(self, y):
+        self.y = y
+
+    # increase y of this building
+    def increase_y(self, dy):
+        self.y += dy
+
     # set the direction of this building
     def set_direction(self, direction):
         self.direction = direction
