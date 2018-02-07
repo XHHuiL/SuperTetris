@@ -2,6 +2,7 @@
 __author__ = "liuhui"
 import pygame
 import colors
+import math
 from pygame.locals import *
 
 
@@ -69,6 +70,9 @@ class TBuilding:
     # the outline's color of these buildings
     OUTLINE_COLOR = colors.White
 
+    # width of square
+    SQUARE_WIDTH = 20
+
     def __init__(self, ty, color, cnt_pos, status, direction, l_boundary, r_boundary):
         self.ty = ty
         self.color = color
@@ -87,6 +91,8 @@ class TBuilding:
         self.status = status
         if self.status == TBuilding.SHOWING:
             self.width = 40
+        else:
+            self.width = 20
 
     # set the center point's position of this building
     def set_cnt_pos(self, cnt_pos):
@@ -96,10 +102,6 @@ class TBuilding:
     # set y of this building
     def set_y(self, y):
         self.y = y
-
-    # increase y of this building
-    def increase_y(self, dy):
-        self.y += dy
 
     # set the direction of this building
     def set_direction(self, direction):
@@ -150,16 +152,22 @@ class TBuilding:
             if self.direction == TBuilding.UP or self.direction == TBuilding.DOWN:
                 x_left = self.x - 2 * self.width
                 x_right = self.x + 2 * self.width
+            elif self.direction == TBuilding.RIGHT:
+                x_left = self.x - self.width
+                x_right = self.x
             else:
-                x_left = self.x - self.width / 2
-                x_right = self.x + self.width / 2
+                x_left = self.x
+                x_right = self.x + self.width
         elif self.ty == TBuilding.BLOCK:
             x_left = self.x - self.width
             x_right = self.x + self.width
         elif self.ty == TBuilding.SOIL:
-            if self.direction == TBuilding.UP or self.direction == TBuilding.DOWN:
-                x_left = self.x - 3 * self.width / 2
-                x_right = self.x + 3 * self.width / 2
+            if self.direction == TBuilding.UP:
+                x_left = self.x - self.width
+                x_right = self.x + 2 * self.width
+            elif self.direction == TBuilding.DOWN:
+                x_left = self.x - 2 * self.width
+                x_right = self.x + self.width
             else:
                 x_left = self.x - self.width
                 x_right = self.x + self.width
@@ -210,9 +218,296 @@ class TBuilding:
                 else:
                     return True
 
-    # vertical move by auto
-    def vertical_move(self):
-        pass
+    # vertical move by dy
+    def vertical_move(self, dy, column_up_boundaries, squares):
+        self.y += dy
+        square_index_pairs = self.get_square_indexes()
+
+        # four square index pairs
+        square_index_pair_1 = square_index_pairs[0]
+        square_index_pair_2 = square_index_pairs[1]
+        square_index_pair_3 = square_index_pairs[2]
+        square_index_pair_4 = square_index_pairs[3]
+
+        # judge
+        if square_index_pair_4[0] >= column_up_boundaries[square_index_pair_4[1]] + 1:
+            self.status = TBuilding.STOPPING
+
+        if square_index_pair_3[0] >= column_up_boundaries[square_index_pair_3[1]] + 1:
+            self.status = TBuilding.STOPPING
+
+        if square_index_pair_2[0] >= column_up_boundaries[square_index_pair_2[1]] + 1:
+            self.status = TBuilding.STOPPING
+
+        if square_index_pair_1[0] >= column_up_boundaries[square_index_pair_1[1]] + 1:
+            self.status = TBuilding.STOPPING
+
+        # if this building is stopping then update the up boundaries
+        if self.status == TBuilding.STOPPING:
+            # set the new up boundary
+            if square_index_pair_1[0] <= column_up_boundaries[square_index_pair_1[1]] + 1:
+                column_up_boundaries[square_index_pair_1[1]] = square_index_pair_1[0] - 2
+
+            if square_index_pair_2[0] <= column_up_boundaries[square_index_pair_2[1]] + 1:
+                column_up_boundaries[square_index_pair_2[1]] = square_index_pair_2[0] - 2
+
+            if square_index_pair_3[0] <= column_up_boundaries[square_index_pair_3[1]] + 1:
+                column_up_boundaries[square_index_pair_3[1]] = square_index_pair_3[0] - 2
+
+            if square_index_pair_4[0] <= column_up_boundaries[square_index_pair_4[1]] + 1:
+                column_up_boundaries[square_index_pair_4[1]] = square_index_pair_4[0] - 2
+
+            # set square filled
+            if square_index_pair_1[0] >= 1:
+                squares[square_index_pair_1[0] - 1][square_index_pair_1[1]].set_filled(True)
+                squares[square_index_pair_1[0] - 1][square_index_pair_1[1]].set_color(self.color)
+
+            if square_index_pair_2[0] >= 1:
+                squares[square_index_pair_2[0] - 1][square_index_pair_2[1]].set_filled(True)
+                squares[square_index_pair_2[0] - 1][square_index_pair_2[1]].set_color(self.color)
+
+            if square_index_pair_3[0] >= 1:
+                squares[square_index_pair_3[0] - 1][square_index_pair_3[1]].set_filled(True)
+                squares[square_index_pair_3[0] - 1][square_index_pair_3[1]].set_color(self.color)
+
+            if square_index_pair_4[0] >= 1:
+                squares[square_index_pair_4[0] - 1][square_index_pair_4[1]].set_filled(True)
+                squares[square_index_pair_4[0] - 1][square_index_pair_4[1]].set_color(self.color)
+
+        # judge whether is stopping
+        if self.status == TBuilding.STOPPING:
+            is_stopping = True
+        else:
+            is_stopping = False
+
+        # judge whether is game over
+        is_game_over = False
+        if is_stopping:
+            for i in column_up_boundaries:
+                if i < 0:
+                    is_game_over = True
+                    break
+
+        return is_stopping, is_game_over
+
+    # get four square indexes from four left down points
+    @staticmethod
+    def square_indexes_from_ld_points(points):
+        ld_point_1 = points[0]
+        ld_point_2 = points[1]
+        ld_point_3 = points[2]
+        ld_point_4 = points[3]
+
+        # get the square index pair of this building
+        # [i, j]
+        square_index_pair_1 = [0, 0]
+        square_index_pair_2 = [0, 0]
+        square_index_pair_3 = [0, 0]
+        square_index_pair_4 = [0, 0]
+
+        square_index_pair_1[1] = int(ld_point_1[0]) // TBuilding.SQUARE_WIDTH
+        square_index_pair_2[1] = int(ld_point_2[0]) // TBuilding.SQUARE_WIDTH
+        square_index_pair_3[1] = int(ld_point_3[0]) // TBuilding.SQUARE_WIDTH
+        square_index_pair_4[1] = int(ld_point_4[0]) // TBuilding.SQUARE_WIDTH
+
+        if ld_point_1[1] < 0:
+            square_index_pair_1[0] = -1
+        else:
+            square_index_pair_1[0] = int(ld_point_1[1]) // TBuilding.SQUARE_WIDTH
+
+        if ld_point_2[1] < 0:
+            square_index_pair_2[0] = -1
+        else:
+            square_index_pair_2[0] = int(ld_point_2[1]) // TBuilding.SQUARE_WIDTH
+
+        if ld_point_3[1] < 0:
+            square_index_pair_3[0] = -1
+        else:
+            square_index_pair_3[0] = int(ld_point_3[1]) // TBuilding.SQUARE_WIDTH
+
+        if ld_point_4[1] < 0:
+            square_index_pair_4[0] = -1
+        else:
+            square_index_pair_4[0] = int(ld_point_4[1]) // TBuilding.SQUARE_WIDTH
+
+        # return four square index pairs
+        return square_index_pair_1, square_index_pair_2, square_index_pair_3, square_index_pair_4
+
+    # get square indexes according to type and direction of this building
+    def get_square_indexes(self):
+        if self.ty == TBuilding.STRIP:
+            if self.direction == TBuilding.UP:
+                # get the left down points of this building
+                ld_point_1 = (self.x - 2 * self.width, self.y + self.width)
+                ld_point_2 = (self.x - self.width, self.y + self.width)
+                ld_point_3 = (self.x, self.y + self.width)
+                ld_point_4 = (self.x + self.width, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.RIGHT:
+                # get the left down points of this building
+                ld_point_1 = (self.x - self.width, self.y - self.width)
+                ld_point_2 = (self.x - self.width, self.y)
+                ld_point_3 = (self.x - self.width, self.y + self.width)
+                ld_point_4 = (self.x - self.width, self.y + 2 * self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.DOWN:
+                # get the left down points of this building
+                ld_point_1 = (self.x - 2 * self.width, self.y)
+                ld_point_2 = (self.x - self.width, self.y)
+                ld_point_3 = (self.x, self.y)
+                ld_point_4 = (self.x + self.width, self.y)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            else:
+                # get the left down points of this building
+                ld_point_1 = (self.x, self.y - self.width)
+                ld_point_2 = (self.x, self.y)
+                ld_point_3 = (self.x, self.y + self.width)
+                ld_point_4 = (self.x, self.y + 2 * self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+        elif self.ty == TBuilding.BLOCK:
+            # get the left down points of this building
+            ld_point_1 = (self.x - self.width, self.y)
+            ld_point_2 = (self.x, self.y)
+            ld_point_3 = (self.x - self.width, self.y + self.width)
+            ld_point_4 = (self.x, self.y + self.width)
+
+            points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+            return self.square_indexes_from_ld_points(points)
+
+        elif self.ty == TBuilding.SOIL:
+            if self.direction == TBuilding.UP:
+                # get the left down points of this building
+                ld_point_1 = (self.x, self.y)
+                ld_point_2 = (self.x - self.width, self.y + self.width)
+                ld_point_3 = (self.x, self.y + self.width)
+                ld_point_4 = (self.x + self.width, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.RIGHT:
+                # get the left down points of this building
+                ld_point_1 = (self.x - self.width, self.y)
+                ld_point_2 = (self.x - self.width, self.y + self.width)
+                ld_point_3 = (self.x, self.y + self.width)
+                ld_point_4 = (self.x - self.width, self.y + 2 * self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.DOWN:
+                # get the left down points of this building
+                ld_point_1 = (self.x - 2 * self.width, self.y)
+                ld_point_2 = (self.x - self.width, self.y)
+                ld_point_3 = (self.x, self.y)
+                ld_point_4 = (self.x - self.width, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            else:
+                # get the left down points of this building
+                ld_point_1 = (self.x, self.y - self.width)
+                ld_point_2 = (self.x - self.width, self.y)
+                ld_point_3 = (self.x, self.y)
+                ld_point_4 = (self.x, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+        elif self.ty == TBuilding.RIGHT_SEVEN:
+            if self.direction == TBuilding.UP:
+                # get the left down points of this building
+                ld_point_1 = (self.x - self.width, self.y)
+                ld_point_2 = (self.x, self.y)
+                ld_point_3 = (self.x - self.width, self.y + self.width)
+                ld_point_4 = (self.x - self.width, self.y + 2 * self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.RIGHT:
+                # get the left down points of this building
+                ld_point_1 = (self.x - 2 * self.width, self.y)
+                ld_point_2 = (self.x - self.width, self.y)
+                ld_point_3 = (self.x, self.y)
+                ld_point_4 = (self.x, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.DOWN:
+                # get the left down points of this building
+                ld_point_1 = (self.x, self.y - self.width)
+                ld_point_2 = (self.x, self.y)
+                ld_point_3 = (self.x - self.width, self.y + self.width)
+                ld_point_4 = (self.x, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            else:
+                # get the left down points of this building
+                ld_point_1 = (self.x - self.width, self.y)
+                ld_point_2 = (self.x - self.width, self.y + self.width)
+                ld_point_3 = (self.x, self.y + self.width)
+                ld_point_4 = (self.x + self.width, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+        else:
+            if self.direction == TBuilding.UP:
+                # get the left down points of this building
+                ld_point_1 = (self.x - self.width, self.y)
+                ld_point_2 = (self.x, self.y)
+                ld_point_3 = (self.x, self.y + self.width)
+                ld_point_4 = (self.x, self.y + 2 * self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.RIGHT:
+                # get the left down points of this building
+                ld_point_1 = (self.x, self.y)
+                ld_point_2 = (self.x - 2 * self.width, self.y + self.width)
+                ld_point_3 = (self.x - self.width, self.y + self.width)
+                ld_point_4 = (self.x, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            elif self.direction == TBuilding.DOWN:
+                # get the left down points of this building
+                ld_point_1 = (self.x - self.width, self.y - self.width)
+                ld_point_2 = (self.x - self.width, self.y)
+                ld_point_3 = (self.x - self.width, self.y + self.width)
+                ld_point_4 = (self.x, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
+
+            else:
+                # get the left down points of this building
+                ld_point_1 = (self.x - self.width, self.y)
+                ld_point_2 = (self.x, self.y)
+                ld_point_3 = (self.x + self.width, self.y)
+                ld_point_4 = (self.x - self.width, self.y + self.width)
+
+                points = [ld_point_1, ld_point_2, ld_point_3, ld_point_4]
+                return self.square_indexes_from_ld_points(points)
 
     # draw this building
     def draw(self, screen):
@@ -220,23 +515,71 @@ class TBuilding:
         # case 1 STRIP
         if self.ty == TBuilding.STRIP:
             # second according the four directions
-            if self.direction == TBuilding.UP or self.direction == TBuilding.DOWN:
-                b_rect = pygame.Rect(self.x - 2 * self.width, self.y - self.width / 2,
+            if self.direction == TBuilding.UP:
+                b_rect = pygame.Rect(self.x - 2 * self.width, self.y,
                                      4 * self.width, self.width)
 
-                b_points = ((self.x - 2 * self.width, self.y - self.width / 2),
-                            (self.x + 2 * self.width, self.y - self.width / 2),
-                            (self.x + 2 * self.width, self.y + self.width / 2),
-                            (self.x - 2 * self.width, self.y + self.width / 2))
+                b_points = ((self.x - 2 * self.width, self.y),
+                            (self.x + 2 * self.width, self.y),
+                            (self.x + 2 * self.width, self.y + self.width),
+                            (self.x - 2 * self.width, self.y + self.width))
 
-                b_cross_points_1 = ((self.x - self.width, self.y - self.width / 2),
-                                    (self.x - self.width, self.y + self.width / 2))
+                b_cross_points_1 = ((self.x - self.width, self.y),
+                                    (self.x - self.width, self.y + self.width))
 
-                b_cross_points_2 = ((self.x, self.y - self.width / 2),
-                                    (self.x, self.y + self.width / 2))
+                b_cross_points_2 = ((self.x, self.y),
+                                    (self.x, self.y + self.width))
 
-                b_cross_points_3 = ((self.x + self.width, self.y - self.width / 2),
-                                    (self.x + self.width, self.y + self.width / 2))
+                b_cross_points_3 = ((self.x + self.width, self.y),
+                                    (self.x + self.width, self.y + self.width))
+
+                pygame.draw.rect(screen, self.color, b_rect)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, True, b_points)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_1)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_2)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_3)
+
+            elif self.direction == TBuilding.DOWN:
+                b_rect = pygame.Rect(self.x - 2 * self.width, self.y - self.width,
+                                     4 * self.width, self.width)
+
+                b_points = ((self.x - 2 * self.width, self.y - self.width),
+                            (self.x + 2 * self.width, self.y - self.width),
+                            (self.x + 2 * self.width, self.y),
+                            (self.x - 2 * self.width, self.y))
+
+                b_cross_points_1 = ((self.x - self.width, self.y),
+                                    (self.x - self.width, self.y - self.width))
+
+                b_cross_points_2 = ((self.x, self.y),
+                                    (self.x, self.y - self.width))
+
+                b_cross_points_3 = ((self.x + self.width, self.y),
+                                    (self.x + self.width, self.y - self.width))
+
+                pygame.draw.rect(screen, self.color, b_rect)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, True, b_points)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_1)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_2)
+                pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_3)
+
+            elif self.direction == TBuilding.RIGHT:
+                b_rect = pygame.Rect(self.x - self.width, self.y - 2 * self.width,
+                                     self.width, 4 * self.width)
+
+                b_points = ((self.x - self.width, self.y - 2 * self.width),
+                            (self.x, self.y - 2 * self.width),
+                            (self.x, self.y + 2 * self.width),
+                            (self.x - self.width, self.y + 2 * self.width))
+
+                b_cross_points_1 = ((self.x - self.width, self.y - self.width),
+                                    (self.x, self.y - self.width))
+
+                b_cross_points_2 = ((self.x - self.width, self.y),
+                                    (self.x, self.y))
+
+                b_cross_points_3 = ((self.x - self.width, self.y + self.width),
+                                    (self.x, self.y + self.width))
 
                 pygame.draw.rect(screen, self.color, b_rect)
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, True, b_points)
@@ -245,22 +588,22 @@ class TBuilding:
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_3)
 
             else:
-                b_rect = pygame.Rect(self.x - self.width / 2, self.y - 2 * self.width,
+                b_rect = pygame.Rect(self.x, self.y - 2 * self.width,
                                      self.width, 4 * self.width)
 
-                b_points = ((self.x - self.width / 2, self.y - 2 * self.width),
-                            (self.x + self.width / 2, self.y - 2 * self.width),
-                            (self.x + self.width / 2, self.y + 2 * self.width),
-                            (self.x - self.width / 2, self.y + 2 * self.width))
+                b_points = ((self.x, self.y - 2 * self.width),
+                            (self.x + self.width, self.y - 2 * self.width),
+                            (self.x + self.width, self.y + 2 * self.width),
+                            (self.x, self.y + 2 * self.width))
 
-                b_cross_points_1 = ((self.x - self.width / 2, self.y - self.width),
-                                    (self.x + self.width / 2, self.y - self.width))
+                b_cross_points_1 = ((self.x + self.width, self.y - self.width),
+                                    (self.x, self.y - self.width))
 
-                b_cross_points_2 = ((self.x - self.width / 2, self.y),
-                                    (self.x + self.width / 2, self.y))
+                b_cross_points_2 = ((self.x + self.width, self.y),
+                                    (self.x, self.y))
 
-                b_cross_points_3 = ((self.x - self.width / 2, self.y + self.width),
-                                    (self.x + self.width / 2, self.y + self.width))
+                b_cross_points_3 = ((self.x + self.width, self.y + self.width),
+                                    (self.x, self.y + self.width))
 
                 pygame.draw.rect(screen, self.color, b_rect)
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, True, b_points)
@@ -294,27 +637,27 @@ class TBuilding:
         elif self.ty == TBuilding.SOIL:
             # second according the four directions
             if self.direction == TBuilding.UP:
-                b_rect_1 = pygame.Rect(self.x - self.width / 2, self.y - self.width,
+                b_rect_1 = pygame.Rect(self.x, self.y - self.width,
                                        self.width, self.width)
 
-                b_rect_2 = pygame.Rect(self.x - 3 * self.width / 2, self.y,
+                b_rect_2 = pygame.Rect(self.x - self.width, self.y,
                                        3 * self.width, self.width)
 
-                b_points_1 = ((self.x - self.width / 2, self.y - self.width),
-                              (self.x + self.width / 2, self.y - self.width),
-                              (self.x + self.width / 2, self.y),
-                              (self.x - self.width / 2, self.y))
+                b_points_1 = ((self.x, self.y - self.width),
+                              (self.x + self.width, self.y - self.width),
+                              (self.x + self.width, self.y),
+                              (self.x, self.y))
 
-                b_points_2 = ((self.x - 3 * self.width / 2, self.y),
-                              (self.x + 3 * self.width / 2, self.y),
-                              (self.x + 3 * self.width / 2, self.y + self.width),
-                              (self.x - 3 * self.width / 2, self.y + self.width))
+                b_points_2 = ((self.x - self.width, self.y),
+                              (self.x + 2 * self.width, self.y),
+                              (self.x + 2 * self.width, self.y + self.width),
+                              (self.x - self.width, self.y + self.width))
 
-                b_cross_points_1 = ((self.x - self.width / 2, self.y),
-                                    (self.x - self.width / 2, self.y + self.width))
+                b_cross_points_1 = ((self.x, self.y),
+                                    (self.x, self.y + self.width))
 
-                b_cross_points_2 = ((self.x + self.width / 2, self.y),
-                                    (self.x + self.width / 2, self.y + self.width))
+                b_cross_points_2 = ((self.x + self.width, self.y),
+                                    (self.x + self.width, self.y + self.width))
 
                 pygame.draw.rect(screen, self.color, b_rect_1)
                 pygame.draw.rect(screen, self.color, b_rect_2)
@@ -324,27 +667,27 @@ class TBuilding:
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_2)
 
             elif self.direction == TBuilding.RIGHT:
-                b_rect_1 = pygame.Rect(self.x, self.y - self.width / 2,
+                b_rect_1 = pygame.Rect(self.x, self.y,
                                        self.width, self.width)
 
-                b_rect_2 = pygame.Rect(self.x - self.width, self.y - 3 * self.width / 2,
+                b_rect_2 = pygame.Rect(self.x - self.width, self.y - self.width,
                                        self.width, 3 * self.width)
 
-                b_points_1 = ((self.x, self.y - self.width / 2),
-                              (self.x + self.width, self.y - self.width / 2),
-                              (self.x + self.width, self.y + self.width / 2),
-                              (self.x, self.y + self.width / 2))
+                b_points_1 = ((self.x, self.y),
+                              (self.x + self.width, self.y),
+                              (self.x + self.width, self.y + self.width),
+                              (self.x, self.y + self.width))
 
-                b_points_2 = ((self.x - self.width, self.y - 3 * self.width / 2),
-                              (self.x, self.y - 3 * self.width / 2),
-                              (self.x, self.y + 3 * self.width / 2),
-                              (self.x - self.width, self.y + 3 * self.width / 2))
+                b_points_2 = ((self.x - self.width, self.y - self.width),
+                              (self.x, self.y - self.width),
+                              (self.x, self.y + 2 * self.width),
+                              (self.x - self.width, self.y + 2 * self.width))
 
-                b_cross_points_1 = ((self.x - self.width, self.y - self.width / 2),
-                                    (self.x, self.y - self.width / 2))
+                b_cross_points_1 = ((self.x - self.width, self.y),
+                                    (self.x, self.y))
 
-                b_cross_points_2 = ((self.x - self.width, self.y + self.width / 2),
-                                    (self.x, self.y + self.width / 2))
+                b_cross_points_2 = ((self.x - self.width, self.y + self.width),
+                                    (self.x, self.y + self.width))
 
                 pygame.draw.rect(screen, self.color, b_rect_1)
                 pygame.draw.rect(screen, self.color, b_rect_2)
@@ -354,27 +697,27 @@ class TBuilding:
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_2)
 
             elif self.direction == TBuilding.DOWN:
-                b_rect_1 = pygame.Rect(self.x - self.width / 2, self.y,
+                b_rect_1 = pygame.Rect(self.x - self.width, self.y,
                                        self.width, self.width)
 
-                b_rect_2 = pygame.Rect(self.x - 3 * self.width / 2, self.y - self.width,
+                b_rect_2 = pygame.Rect(self.x - 2 * self.width, self.y - self.width,
                                        3 * self.width, self.width)
 
-                b_points_1 = ((self.x - self.width / 2, self.y),
-                              (self.x + self.width / 2, self.y),
-                              (self.x + self.width / 2, self.y + self.width),
-                              (self.x - self.width / 2, self.y + self.width))
+                b_points_1 = ((self.x - self.width, self.y),
+                              (self.x, self.y),
+                              (self.x, self.y + self.width),
+                              (self.x - self.width, self.y + self.width))
 
-                b_points_2 = ((self.x - 3 * self.width / 2, self.y - self.width),
-                              (self.x + 3 * self.width / 2, self.y - self.width),
-                              (self.x + 3 * self.width / 2, self.y),
-                              (self.x - 3 * self.width / 2, self.y))
+                b_points_2 = ((self.x - 2 * self.width, self.y - self.width),
+                              (self.x + self.width, self.y - self.width),
+                              (self.x + self.width, self.y),
+                              (self.x - 2 * self.width, self.y))
 
-                b_cross_points_1 = ((self.x - self.width / 2, self.y - self.width),
-                                    (self.x - self.width / 2, self.y))
+                b_cross_points_1 = ((self.x - self.width, self.y - self.width),
+                                    (self.x - self.width, self.y))
 
-                b_cross_points_2 = ((self.x + self.width / 2, self.y - self.width),
-                                    (self.x + self.width / 2, self.y))
+                b_cross_points_2 = ((self.x, self.y - self.width),
+                                    (self.x, self.y))
 
                 pygame.draw.rect(screen, self.color, b_rect_1)
                 pygame.draw.rect(screen, self.color, b_rect_2)
@@ -384,27 +727,27 @@ class TBuilding:
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_2)
 
             else:
-                b_rect_1 = pygame.Rect(self.x - self.width, self.y - self.width / 2,
+                b_rect_1 = pygame.Rect(self.x - self.width, self.y - self.width,
                                        self.width, self.width)
 
-                b_rect_2 = pygame.Rect(self.x, self.y - 3 * self.width / 2,
+                b_rect_2 = pygame.Rect(self.x, self.y - 2 * self.width,
                                        self.width, 3 * self.width)
 
-                b_points_1 = ((self.x - self.width, self.y - self.width / 2),
-                              (self.x, self.y - self.width / 2),
-                              (self.x, self.y + self.width / 2),
-                              (self.x - self.width, self.y + self.width / 2))
+                b_points_1 = ((self.x - self.width, self.y - self.width),
+                              (self.x, self.y - self.width),
+                              (self.x, self.y),
+                              (self.x - self.width, self.y))
 
-                b_points_2 = ((self.x, self.y - 3 * self.width / 2),
-                              (self.x + self.width, self.y - 3 * self.width / 2),
-                              (self.x + self.width, self.y + 3 * self.width / 2),
-                              (self.x, self.y + 3 * self.width / 2))
+                b_points_2 = ((self.x, self.y - 2 * self.width),
+                              (self.x + self.width, self.y - 2 * self.width),
+                              (self.x + self.width, self.y + self.width),
+                              (self.x, self.y + self.width))
 
-                b_cross_points_1 = ((self.x, self.y - self.width / 2),
-                                    (self.x + self.width, self.y - self.width / 2))
+                b_cross_points_1 = ((self.x, self.y - self.width),
+                                    (self.x + self.width, self.y - self.width))
 
-                b_cross_points_2 = ((self.x, self.y + self.width / 2),
-                                    (self.x + self.width, self.y + self.width / 2))
+                b_cross_points_2 = ((self.x, self.y),
+                                    (self.x + self.width, self.y))
 
                 pygame.draw.rect(screen, self.color, b_rect_1)
                 pygame.draw.rect(screen, self.color, b_rect_2)
@@ -658,3 +1001,32 @@ class TBuilding:
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, True, b_points_2)
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_1)
                 pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, False, b_cross_points_2)
+
+
+class TSquare:
+
+    # the construct of TSquare
+    def __init__(self, is_filled, x, y, width):
+        self.is_filled = is_filled
+        self.x = x
+        self.y = y
+        self.width = width
+        self.color = colors.White
+
+    # set filled
+    def set_filled(self, is_filled):
+        self.is_filled = is_filled
+
+    # set color
+    def set_color(self, color):
+        self.color = color
+
+    # draw this square in a screen
+    def draw(self, screen):
+        if self.is_filled:
+            s_rect = pygame.Rect(self.x, self.y, self.width, self.width)
+            s_points = ((self.x, self.y), (self.x + self.width, self.y),
+                        (self.x + self.width, self.y + self.width), (self.x, self.y + self.width))
+
+            pygame.draw.rect(screen, self.color, s_rect)
+            pygame.draw.lines(screen, TBuilding.OUTLINE_COLOR, True, s_points)

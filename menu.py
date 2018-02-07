@@ -3,7 +3,7 @@ __author__ = "liuhui"
 import colors
 import pygame
 import random
-from tools import TBuilding
+from tools import *
 from pygame.locals import *
 
 # define some constant
@@ -82,10 +82,21 @@ INF_BLOCK_POINTS = ((240, 20), (500, 20), (500, 400), (240, 400))
 
 PLAY_BLOCK = None
 
+# the squares used to fill the play block
+SQUARES = []
+SQUARE_WIDTH = 20
+
 PLAY_LEFT_BOUNDARY = 0
 PLAY_RIGHT_BOUNDARY = 200
 PLAY_UP_BOUNDARY = 0
 PLAY_DOWN_BOUNDARY = 380
+PLAY_ROW_MAX_INDEX = 18
+
+# the ten columns' up boundary of play block
+COLUMN_UP_BOUNDARIES = [PLAY_ROW_MAX_INDEX, PLAY_ROW_MAX_INDEX, PLAY_ROW_MAX_INDEX,
+                        PLAY_ROW_MAX_INDEX, PLAY_ROW_MAX_INDEX, PLAY_ROW_MAX_INDEX,
+                        PLAY_ROW_MAX_INDEX, PLAY_ROW_MAX_INDEX, PLAY_ROW_MAX_INDEX,
+                        PLAY_ROW_MAX_INDEX]
 
 INF_LEFT_BOUNDARY = 240
 INF_RIGHT_BOUNDARY = 500
@@ -117,7 +128,10 @@ INCREASE_Y = 0
 # current building's start x and y
 CURRENT_BUILDING = None
 CURRENT_BUILDING_X = 100
-CURRENT_BUILDING_Y = 40
+CURRENT_BUILDING_Y = -40
+
+IS_GAME_OVER = False
+GAME_OVER_TEXT = "Game Over"
 
 COLORS = (colors.Red, colors.ChestnutRed, colors.DullRed,
           colors.BrownRed, colors.FireRed, colors.DeepRed,
@@ -151,6 +165,7 @@ STATUS = (TBuilding.FALLING, TBuilding.STOPPING, TBuilding.SHOWING)
 # a clock
 CLOCK = None
 
+
 def main():
     # reference the global variables
     global IN_MENU
@@ -178,6 +193,11 @@ def main():
     global CLOCK
     global UNIT_SPEED
     global IS_GAME_PAUSED
+    global SQUARES
+    global IS_GAME_OVER
+
+    show_time = 0
+    is_gom_played = False
 
     # init
     pygame.init()
@@ -250,6 +270,22 @@ def main():
     next_label = small_font.render(NEXT_BUILDING_TEXT, True, colors.White)
     score_label = small_font.render(SCORE_TEXT, True, colors.White)
     score_number_label = small_font.render(SCORE_NUMBER_TEXT, True, colors.White)
+
+    # the squares
+    for i in range(0, 19):
+        lines = []
+        for j in range(0, 10):
+            lines.append(TSquare(False, j * SQUARE_WIDTH, i * SQUARE_WIDTH, SQUARE_WIDTH))
+        SQUARES.append(lines)
+
+    # the game over label
+    large_font = pygame.font.Font("data/font/tetris_cp_mario.ttf", 64)
+    game_over_label = large_font.render(GAME_OVER_TEXT, True, colors.White)
+    game_over_rect = game_over_label.get_rect()
+    game_over_rect.center = (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+
+    # the game over music
+    game_over_music = pygame.mixer.Sound("data/sound/lost.wav")
 
     ###################################
     ## 3.settings of level-interface ##
@@ -343,8 +379,11 @@ def main():
             if event.key == K_ESCAPE and not IN_MENU:
                 if IN_PLAY:
                     IS_GAME_PLAYING = False
+                    IS_GAME_OVER = False
+                    show_time = 0
                     play_bgm.stop()
                     menu_bgm_channel = menu_bgm.play(-1)
+                    is_gom_played = False
                 turn_to_menu()
 
             # exit
@@ -380,14 +419,15 @@ def main():
                 if UNIT_SPEED < T_UNIT_SPEED:
                     UNIT_SPEED += 10
 
+            if event.key == K_UP and IN_PLAY and IS_GAME_PLAYING:
+                if UNIT_SPEED > T_UNIT_SPEED // 3:
+                    UNIT_SPEED -= 10
+
             if event.key == K_SPACE and IN_PLAY and IS_GAME_PLAYING:
                 if IS_GAME_PAUSED:
                     IS_GAME_PAUSED = False
                 else:
                     IS_GAME_PAUSED = True
-
-
-
 
         # listen to the mouse pressed event in level-interface
         # this statue must be dealt before the next one
@@ -527,8 +567,39 @@ def main():
             NEXT_BUILDING.draw(screen)
 
             # draw the current building in play block
-            CURRENT_BUILDING.increase_y(INCREASE_Y)
+            is_stopping = False
+            if not IS_GAME_OVER:
+                is_stopping, IS_GAME_OVER = CURRENT_BUILDING.vertical_move(INCREASE_Y, COLUMN_UP_BOUNDARIES, SQUARES)
             CURRENT_BUILDING.draw(PLAY_BLOCK)
+
+            # draw squares
+            for i in range(0, 19):
+                for j in range(0, 10):
+                    SQUARES[i][j].draw(PLAY_BLOCK)
+
+            if IS_GAME_OVER:
+                screen.blit(game_over_label, game_over_rect)
+                if not is_gom_played:
+                    game_over_music.play()
+                    is_gom_played = True
+                if show_time > 6000:
+                    IS_GAME_PLAYING = False
+                    IS_GAME_OVER = False
+                    show_time = 0
+                    play_bgm.stop()
+                    menu_bgm_channel = menu_bgm.play(-1)
+                    turn_to_menu()
+                pass
+
+            if is_stopping:
+                CURRENT_BUILDING.ty = NEXT_BUILDING.ty
+                CURRENT_BUILDING.direction = NEXT_BUILDING.direction
+                CURRENT_BUILDING.color = NEXT_BUILDING.color
+                CURRENT_BUILDING.set_status(TBuilding.FALLING)
+                CURRENT_BUILDING.set_cnt_pos((CURRENT_BUILDING_X, CURRENT_BUILDING_Y))
+                CURRENT_BUILDING.l_boundary = PLAY_LEFT_BOUNDARY
+                CURRENT_BUILDING.r_boundary = PLAY_RIGHT_BOUNDARY
+                NEXT_BUILDING = get_building_randomly((NEXT_BUILDING_X, NEXT_BUILDING_Y), True)
 
         # set the prompt message
         if IN_PLAY and not IS_GAME_PLAYING:
@@ -539,6 +610,8 @@ def main():
 
         # get the pass time
         time_pa = CLOCK.tick(25)
+        if IS_GAME_OVER:
+            show_time += time_pa
         INCREASE_Y = CURRENT_LEVEL * UNIT_SPEED * time_pa / 1000.0
         if IS_GAME_PAUSED:
             INCREASE_Y = 0
@@ -553,10 +626,14 @@ def turn_to_menu():
 
     global IS_MUSIC_PAUSED
     global IS_MUSIC_STOPPED
+    global SQUARES
 
     if IN_PLAY:
         IS_MUSIC_PAUSED = False
         IS_MUSIC_STOPPED = False
+        for i in range(0, 19):
+            for j in range(0, 10):
+                SQUARES[i][j].set_filled(False)
 
     IN_MENU = True
     IN_PLAY = False
@@ -568,16 +645,17 @@ def turn_to_menu():
 def get_building_randomly(pos, next):
     if next:
         return TBuilding(TYPES[random.randint(0, TYPES_MAX_INDEX)],
-                        COLORS[random.randint(0, COLORS_MAX_INDEX)],
-                        pos, TBuilding.SHOWING,
-                        DIRECTIONS[random.randint(0, DIRECTIONS_MAX_INDEX)],
-                        INF_LEFT_BOUNDARY, INF_RIGHT_BOUNDARY)
+                         COLORS[random.randint(0, COLORS_MAX_INDEX)],
+                         pos, TBuilding.SHOWING,
+                         DIRECTIONS[random.randint(0, DIRECTIONS_MAX_INDEX)],
+                         INF_LEFT_BOUNDARY, INF_RIGHT_BOUNDARY)
     else:
         return TBuilding(TYPES[random.randint(0, TYPES_MAX_INDEX)],
                          COLORS[random.randint(0, COLORS_MAX_INDEX)],
                          pos, TBuilding.FALLING,
                          DIRECTIONS[random.randint(0, DIRECTIONS_MAX_INDEX)],
                          PLAY_LEFT_BOUNDARY, PLAY_RIGHT_BOUNDARY)
+
 
 if __name__ == "__main__":
     main()
