@@ -73,6 +73,10 @@ class TBuilding:
     # width of square
     SQUARE_WIDTH = 20
 
+    # the destroy music
+    pygame.init()
+    DESTROY_MUSIC = pygame.mixer.Sound("data/sound/destroy.wav")
+
     def __init__(self, ty, color, cnt_pos, status, direction, l_boundary, r_boundary):
         self.ty = ty
         self.color = color
@@ -230,16 +234,28 @@ class TBuilding:
         square_index_pair_4 = square_index_pairs[3]
 
         # judge
-        if square_index_pair_4[0] >= column_up_boundaries[square_index_pair_4[1]] + 1:
+        if square_index_pair_4[0] >= 19:
             self.status = TBuilding.STOPPING
 
-        if square_index_pair_3[0] >= column_up_boundaries[square_index_pair_3[1]] + 1:
+        elif square_index_pair_4[0] >= 0 and squares[square_index_pair_4[0]][square_index_pair_4[1]].is_filled:
             self.status = TBuilding.STOPPING
 
-        if square_index_pair_2[0] >= column_up_boundaries[square_index_pair_2[1]] + 1:
+        if square_index_pair_3[0] >= 19:
             self.status = TBuilding.STOPPING
 
-        if square_index_pair_1[0] >= column_up_boundaries[square_index_pair_1[1]] + 1:
+        elif square_index_pair_3[0] >= 0 and squares[square_index_pair_3[0]][square_index_pair_3[1]].is_filled:
+            self.status = TBuilding.STOPPING
+
+        if square_index_pair_2[0] >= 19:
+            self.status = TBuilding.STOPPING
+
+        elif square_index_pair_2[0] >= 0 and squares[square_index_pair_2[0]][square_index_pair_2[1]].is_filled:
+            self.status = TBuilding.STOPPING
+
+        if square_index_pair_1[0] >= 19:
+            self.status = TBuilding.STOPPING
+
+        elif square_index_pair_1[0] >= 0 and squares[square_index_pair_1[0]][square_index_pair_1[1]].is_filled:
             self.status = TBuilding.STOPPING
 
         # if this building is stopping then update the up boundaries
@@ -280,6 +296,49 @@ class TBuilding:
         else:
             is_stopping = False
 
+        all_filled_row_indexes = []
+
+        # get all the filled row
+        if is_stopping:
+            for i in range(0, 19):
+                count = 0
+                for j in range(0, 10):
+                    if not squares[18 - i][j].is_filled:
+                        break
+                    else:
+                        count += 1
+                if count == 10:
+                    all_filled_row_indexes.append(18-i)
+
+        length = len(all_filled_row_indexes)
+        # remove all the filled rows
+        for i in range(0, length):
+            current_index = all_filled_row_indexes[i]
+            for j in range(0, current_index - 1):
+                for k in range(0, 10):
+                    squares[current_index - j][k].is_filled = squares[current_index - j-1][k].is_filled
+                    squares[current_index - j][k].color = squares[current_index - j-1][k].color
+            for k in range(0, 10):
+                squares[0][k].is_filled = False
+
+            # update the following row index
+            for j in range(i, length):
+                all_filled_row_indexes[j] += 1
+
+        score = 0
+        if length == 1:
+            score = 100
+        elif length == 2:
+            score = 2 * 200
+        elif length == 3:
+            score = 3 * 300
+        elif length >= 4:
+            score = 4 * 400
+
+        # play the destroy music
+        if score > 0:
+            TBuilding.DESTROY_MUSIC.play()
+
         # judge whether is game over
         is_game_over = False
         if is_stopping:
@@ -288,7 +347,7 @@ class TBuilding:
                     is_game_over = True
                     break
 
-        return is_stopping, is_game_over
+        return is_stopping, is_game_over, score
 
     # get four square indexes from four left down points
     @staticmethod
