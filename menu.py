@@ -195,6 +195,8 @@ def main():
     global IS_GAME_PAUSED
     global SQUARES
     global IS_GAME_OVER
+    global SCORE_NUMBER_TEXT
+    global SCORE_NUMBER
 
     show_time = 0
     is_gom_played = False
@@ -451,6 +453,9 @@ def main():
                 PLAY_OPTION_CHOSEN = False
                 IS_MUSIC_PAUSED = False
                 IS_MUSIC_STOPPED = False
+                SCORE_NUMBER = 0
+                SCORE_NUMBER_TEXT = "000"
+                score_number_label = small_font.render(SCORE_NUMBER_TEXT, True, colors.White)
                 menu_bgm.stop()
                 play_bgm_channel = play_bgm.play(-1)
                 NEXT_BUILDING = get_building_randomly(NEXT_BUILDING_POS, True)
@@ -568,8 +573,9 @@ def main():
 
             # draw the current building in play block
             is_stopping = False
+            score = 0
             if not IS_GAME_OVER:
-                is_stopping, IS_GAME_OVER = CURRENT_BUILDING.vertical_move(INCREASE_Y, COLUMN_UP_BOUNDARIES, SQUARES)
+                is_stopping, IS_GAME_OVER, score = CURRENT_BUILDING.vertical_move(INCREASE_Y, COLUMN_UP_BOUNDARIES, SQUARES)
             CURRENT_BUILDING.draw(PLAY_BLOCK)
 
             # draw squares
@@ -580,18 +586,23 @@ def main():
             if IS_GAME_OVER:
                 screen.blit(game_over_label, game_over_rect)
                 if not is_gom_played:
+                    play_bgm.stop()
                     game_over_music.play()
                     is_gom_played = True
                 if show_time > 6000:
                     IS_GAME_PLAYING = False
                     IS_GAME_OVER = False
+                    is_gom_played = False
                     show_time = 0
-                    play_bgm.stop()
+                    SCORE_NUMBER = 0
+                    SCORE_NUMBER_TEXT = "000"
+                    score_number_label = small_font.render(SCORE_NUMBER_TEXT, True, colors.White)
                     menu_bgm_channel = menu_bgm.play(-1)
+                    UNIT_SPEED = T_UNIT_SPEED / 3
                     turn_to_menu()
-                pass
 
             if is_stopping:
+                # update the status of current building
                 CURRENT_BUILDING.ty = NEXT_BUILDING.ty
                 CURRENT_BUILDING.direction = NEXT_BUILDING.direction
                 CURRENT_BUILDING.color = NEXT_BUILDING.color
@@ -600,6 +611,12 @@ def main():
                 CURRENT_BUILDING.l_boundary = PLAY_LEFT_BOUNDARY
                 CURRENT_BUILDING.r_boundary = PLAY_RIGHT_BOUNDARY
                 NEXT_BUILDING = get_building_randomly((NEXT_BUILDING_X, NEXT_BUILDING_Y), True)
+
+                # set the score label
+                if score > 0:
+                    SCORE_NUMBER += score
+                    SCORE_NUMBER_TEXT = '%d'%SCORE_NUMBER
+                    score_number_label = small_font.render(SCORE_NUMBER_TEXT, True, colors.White)
 
         # set the prompt message
         if IN_PLAY and not IS_GAME_PLAYING:
@@ -627,10 +644,14 @@ def turn_to_menu():
     global IS_MUSIC_PAUSED
     global IS_MUSIC_STOPPED
     global SQUARES
+    global COLUMN_UP_BOUNDARIES
 
     if IN_PLAY:
         IS_MUSIC_PAUSED = False
         IS_MUSIC_STOPPED = False
+        for i in range(0, 10):
+            COLUMN_UP_BOUNDARIES[i] = PLAY_ROW_MAX_INDEX
+
         for i in range(0, 19):
             for j in range(0, 10):
                 SQUARES[i][j].set_filled(False)
@@ -641,7 +662,7 @@ def turn_to_menu():
     IN_HELP = False
 
 
-#
+# get building randomly
 def get_building_randomly(pos, next):
     if next:
         return TBuilding(TYPES[random.randint(0, TYPES_MAX_INDEX)],

@@ -329,11 +329,11 @@ class TBuilding:
         if length == 1:
             score = 100
         elif length == 2:
-            score = 2 * 200
+            score = 400
         elif length == 3:
-            score = 3 * 300
+            score = 900
         elif length >= 4:
-            score = 4 * 400
+            score = 1600
 
         # play the destroy music
         if score > 0:
