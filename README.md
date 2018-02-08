@@ -32,3 +32,6 @@
 ## Dependencies
 + **python3**
 + **pygame1.9.3**
+## Attention
++ **The main.exe program can be run directly in the 64 bit windows system**
++ **main.py can run through the python interpreter in both windows and linux systems**
