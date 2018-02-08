@@ -1,3 +1,4 @@
 # SuperTetris
-tetris by python
-request:pygame1.9.3
+# How to play #
+
+# Dependencies #
