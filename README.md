@@ -1,3 +1,6 @@
 # SuperTetris
-tetris by python
-request:pygame1.9.3
+# How to play #
+## the menu interface
+
+
+# Dependencies #
